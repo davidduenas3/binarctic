@@ -1,3 +1,4 @@
 [submodule "arctic"]
 	path = arctic
 	url = git@github.com:davidduenas3/arctic.git
+	branch = binarctic
