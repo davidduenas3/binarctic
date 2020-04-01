@@ -2,3 +2,6 @@
 	path = arctic
 	url = git@github.com:davidduenas3/arctic.git
 	branch = binarctic
+[submodule "python-binance"]
+	path = python-binance
+	url = git@github.com:davidduenas3/python-binance.git
