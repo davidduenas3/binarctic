@@ -5,3 +5,4 @@
 [submodule "python-binance"]
 	path = python-binance
 	url = git@github.com:davidduenas3/python-binance.git
+	branch = asyncio
