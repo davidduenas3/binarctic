@@ -210,21 +210,6 @@ class User(nt_User,_CommonRU):
         except:
             raise
       
-<<<<<<< HEAD
-# cl=MongoClient()
-# db=cl.arctic
-# u=db.User('arctic',authenticate=True)
-
-# a=Arctic(cl)
-=======
-cl=MongoClient()
-db=cl.arctic
-u=db.User('arctic',authenticate=True)
-
-a=Arctic(cl)
->>>>>>> 1b7fb3ae0b91be1d2b6e41102fda294fb50da85f
-
-
 
 
 
