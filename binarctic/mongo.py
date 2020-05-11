@@ -6,31 +6,12 @@ Created on Wed May  6 16:53:39 2020
 @author: ddd
 """
 
-<<<<<<< HEAD
 import functools as ft
 from inspect import signature ,Parameter, _ParameterKind as Kind , _empty
 from collections import namedtuple,Mapping,ChainMap
 from pymongo import mongo_client, database
 from pymongo.errors import OperationFailure
 from arctic import Arctic
-
-=======
-import itertools as itt
-import functools as ft
-import types
-from bson import SON
-from getpass import getpass
-from inspect import signature, Signature,Parameter,_ParameterKind as Kind ,_empty
-from collections import namedtuple,Mapping,ChainMap
-
-
-from pymongo import mongo_client,database,collection
-from pymongo.errors import OperationFailure
-
-from arctic import Arctic
-
-from arctic.auth import Credential
->>>>>>> 1b7fb3ae0b91be1d2b6e41102fda294fb50da85f
 
 
 class partial_cmd:
