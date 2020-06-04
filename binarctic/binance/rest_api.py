@@ -21,14 +21,23 @@ from operator import itemgetter
 from binarctic.binance.exception import  BinanceAPIException, BinanceRequestException
 from binarctic.binance import api_config
 from binarctic.binance import models
+from binarctic.pipe import Pipable, apply_fn
+from binarctic import pipe
+from binarctic.utils import *
+
 from inspect import (Signature,Parameter,signature,iscoroutine,
                      iscoroutinefunction,ismethoddescriptor,isfunction,
-                     ismethod,isasyncgen,isgenerator)
+                     ismethod,isasyncgen,isgenerator,isasyncgenfunction,
+                     isgeneratorfunction)
 from types import  MethodType
-from collections import namedtuple
+from collections import namedtuple, abc
 
 
 __all__ = ['Session','ASession']
+
+
+
+
 
 class KInterval(str,enum.Enum):
     KLINE_INTERVAL_1MINUTE = '1m'
@@ -49,7 +58,28 @@ class KInterval(str,enum.Enum):
 
     __str__=lambda self: str.__str__(self)
 
+class _KLIterable():
+    _code='''{}def __{}iter__(self):
+            buffer=None
+            while True:
+                if buffer is None:
+                    if chunk:= {}self.req(startTime=self.last+1):
+                        buffer = iter(chunk)
+                    else:
+                        return
+                try:
+                    ret=next(buffer)
+                    yield ret
+                    self.last=ret[0]  
+                except StopIteration:
+                    buffer=None'''  
+    
+    def __init__(self,sess,symbol,interval='1h',startTime=0):
+        self.req=ft.partial(sess.klines,symbol,KInterval(interval),limit=1000)
+        self.last=startTime-1         
+    
 
+# ASession.KLIterable = KLAIterable
     
 class DataParam(Parameter):
     type=staticmethod(lambda x:x)
@@ -67,7 +97,7 @@ class DataParam(Parameter):
     
 
 
-class End_Point(object):
+class End_Point(Pipable):
     API_URL = 'https://api.binance.com/api'
     
     
@@ -94,7 +124,7 @@ class End_Point(object):
         args = list(args)
         
         for p in self.parameters:
-            k, v= p.name, Parameter.empty
+            k, v= p.name, p.default
             if p.kind==Parameter.POSITIONAL_OR_KEYWORD:
                 v = kwargs.pop(k) if k in kwargs else args.pop(0) if args else v
             elif p.kind==Parameter.KEYWORD_ONLY:
@@ -106,13 +136,7 @@ class End_Point(object):
         kwargs = self._get_request_kwargs(ins,**kwargs)
         ret = ins._request(self.method, self.uri, **kwargs)
         return ret
-    
-        
-    
-    def pipe(self,fn):
-        return apply_fn(fn,self)
-    
-    __or__ = pipe
+
             
 
     def _get_request_kwargs(self,ins,**kwargs):
@@ -147,41 +171,6 @@ class End_Point(object):
         
 
 
-__empty=object()
-
-def apply_fn(fn,res=__empty):
-    if res is __empty:
-        return lambda res:apply_fn(fn,res)
-    
-    async def coro_apply(coro):
-        return fn(await coro)  
-    
-    async def agen_apply(agen):
-        async for i in agen:
-            yield fn(i)
-    
-    if ismethoddescriptor(res) or isfunction(res) :
-        class _Wrapper():
-            def __get__(self,ins,owner=None):
-                return self if ins is None else MethodType(self,ins)
-            def __call__(self,ins,*args,**kwargs):
-                ret=res.__get__(ins)(*args,**kwargs)
-                return apply_fn(fn,ret)
-        
-        return ft.wraps(res)(_Wrapper())
-    
-    elif iscoroutine(res):
-        return coro_apply(res)
-    elif isgenerator(res):
-        return (fn(i) for i in res)
-    elif isasyncgen(res):
-        return agen_apply(res)
-    else:
-        return fn(res)
-
-
-
-# nt_info=namedtuple('einfo',['timezone', 'serverTime', 'rateLimits', 'exchangeFilters', 'symbols'])
 
 
 
@@ -206,8 +195,7 @@ class _Base_Session(ABC):
                        'User-Agent': 'binance/python',
                        'X-MBX-APIKEY': self.key.api_key}    
     
- 
-    
+
 
 class Reqs(object): 
     '''
@@ -215,7 +203,7 @@ class Reqs(object):
     ''' 
     ping = End_Point('v3/ping', 'get')
     
-    exchangeInfo = End_Point('v3/exchangeInfo', 'get') | models.ExchangeInfo
+    exchangeInfo = End_Point('v3/exchangeInfo', 'get') 
     
     aggTrades = End_Point('v3/aggTrades','get',parameters=(
                         DataParam.mandatory('symbol',str),
@@ -223,7 +211,7 @@ class Reqs(object):
                         DataParam.optional('startTime',int),
                         DataParam.optional('endTime',int),
                         DataParam.optional('limit',int))
-                ).pipe(models.AggTrades)
+                ).pipe(models.AggTrade.list_of)
     
     klines = End_Point('v3/klines',
                        'get',parameters=(
@@ -247,10 +235,18 @@ class Reqs(object):
     account = End_Point('v3/account','get', signed=True)
     
 
-    _get_first_ts = apply_fn(lambda res:res[0][0],
-                             ft.partialmethod(klines,interval='1h',startTime=0,limit=1))
+    # _get_first_ts = apply_fn(lambda res:res[0][0])(
+    #         ft.partialmethod(klines,interval='1h',startTime=0,limit=1))
     
+    get_first_ts = pipe.partialmethod(klines,interval='1h',startTime=0,limit=1)\
+            .pipe(lambda res:res[0][0])
     
+    klines_iterator = property (lambda self:MethodType(self.KLIterable,self))
+    
+    def klines_chunked(self,n=1000):
+        return chunked_iterator(self.klines_iterator,nchunked=n)
+    
+    # def klines_chunked(self)
     
 class Session(_Base_Session,Reqs):
     
@@ -272,12 +268,13 @@ class Session(_Base_Session,Reqs):
                 except ValueError:
                     raise BinanceRequestException('Invalid Response: %s' % response.text)
     
-    
-    # def iter_klines(self,symbol,interval,startTime=0,limit=1000):
-    #     while nxt:=self.klines(symbol,interval,startTime=startTime,limit=limit):
-    #         yield from nxt
-    #         startTime = nxt[-1][6]+1
-            
+   
+
+    class KLIterable(_KLIterable):
+        exec(_KLIterable._code.format('','',''))
+
+
+
             
 class ASession(_Base_Session,Reqs):
     
@@ -297,34 +294,49 @@ class ASession(_Base_Session,Reqs):
                 except ValueError:
                     txt = await response.text()
                     raise BinanceRequestException('Invalid Response: {}'.format(txt))
+    
 
+    class KLIterable(_KLIterable):
+        exec(_KLIterable._code.format('async ','a', 'await '))
 
-    # @apply_fn(tuple)
-    # async def iter_klines(self,symbol,interval,startTime=0,limit=1000):
-    #     while nxt:=await self.klines(symbol,interval,startTime=startTime,limit=limit):
-    #         for k in nxt:
-    #             yield k
-    #         startTime = nxt[-1][6]+1               
-                
-                
+    
+
+def chunked_iterator(func,nchunked=1000):
         
+    @ft.wraps(func)
+    def _wrapper(*args,**kwargs):
+        from binarctic.utils import chunked,achunked
+        
+        it=func(*args,**kwargs)
+        if isinstance(it,abc.Iterable):
+            return chunked.to_list(it,nchunked)
+            # return (list(c) for c in chunked(it,nchunked))
+        elif isinstance(it,abc.AsyncIterable):
+            return  achunked.to_list(it,nchunked)
+        # (await alist(c) async for c in achunked(it,nchunked)) 
+        
+        raise TypeError('generatorfunction??')
+        
+    return _wrapper
+    
 
-            # for k in nxt:
-            #     yield k
-            # startTime = nxt[-1][6]+1
             
 if __name__=='__main__':
     
     sym='BTCUSDT'
     s=Session()
-    print(list(s.exchangeInfo()))
-    print(list(s.account()))
-    print(len(s.aggTrades(sym,fromId=99)))
+    # print(list(s.exchangeInfo()))
+    # print(list(s.account()))
+    # print(len(s.aggTrades(sym,fromId=99)))
     
     # fn= s._chunker(sym,interval=KInterval.KLINE_INTERVAL_1DAY,startTime=0)(Session.klines)
      
-    ei=s.exchangeInfo()
+    # ei=s.exchangeInfo()
     ac=ASession()
+    
+    # chunker =chunked_iterator(100,s.klines_iterator)(sym,'1h')
+    
+    
 """
     await ac.account()
     await ac.exchangeInfo()

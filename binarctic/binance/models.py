@@ -7,7 +7,7 @@ Created on Fri May 22 20:17:28 2020
 """
 
 from typing import List,NamedTuple,TypeVar,Generic,NewType
-from types import new_class
+from types import new_class, MappingProxyType
 from operator import itemgetter
 import functools as ft
 import abc
@@ -24,11 +24,7 @@ from decimal import Decimal
 
 
 class ModelMeta(type):
-    # def __new__(mtc, name, bases, ns):
-    #     ns['__module__']=__name__
-    #     return super().__new__(mtc, name, bases, ns)
-
-        
+  
     def __call__(cls,value):
         self=super().__call__(value)
         self.__value = value
@@ -92,75 +88,41 @@ def Indexed(indexer):
         return cls
     return _decorator
 
-# def typed_list(fn=None,**kwargs):
-#     if fn is None:
-#         return lambda fn : typed_list(fn,**kwargs)
-    
-#     class TList(_Sequence):
-#         __itemtype__=staticmethod(fn)
-#         def __init__(self,value):
-#             super().__init__((fn(i) for i in value))
-#     # TList.__name__= kwargs.pop('name','TList')
-#     TList.__module__ = fn.__module__
-#     TList.__qualname__ = fn.__qualname__ + '.TList'
-    
-#     return TList
 
-# class _Indexed_Sequence(_Sequence):
-#     # __indexer__ = staticmethod(id)
-    
-#     def __init_subclass__(cls,**kwargs):
-#         __indexer__ = kwargs.pop('indexer',None)
-#         if callable(__indexer__):
-#             # cls.__indexer__=staticmethod(__indexer__)
-#             __init__=cls.__init__
-#             def _init(self,value):
-#                 __init__(self,value)
-#                 keys = map(__indexer__,self)
-#                 self.__map=dict(zip(keys,self))
-#             cls.__init__ = _init
-            
-#         super().__init_subclass__(**kwargs)
-
-   
-#     # def __init__(self,coll):
-#     #     super().__init__(coll)
-#     #     keys = map(self.__indexer__,self)
-#     #     self.__map=dict(zip(keys,self))
-
-#     keys = property(lambda self : self.__map.keys)
-#     get = property(lambda self : self.__map.get)
-    
-#     def __getattr__(self,name):
-#         if name in self.__map:
-#             return self.__map[name]
-#         raise AttributeError(name)
-        
-#     def __dir__(self):
-#         return super().__dir__() + [k for k in self.__map]
-        
         
 class _TypedDictMeta(_ColMeta):
-    
+    # @classmethod
+    # def __prepare__(mtc,name,bases):
+    #     class _TDICT(dict):
+    #         def __setitem__(s,k,v):
+    #             if k=='__annotations__':
+    #                 s['_names_map_']={n:n for n in v}
+    #                 # pass
+    #                 # print(v)
+    #             super().__setitem__(k,v)
+                    
+                        
+    #         def __getitem__(s,k):
+    #             if k=='__annotations__':
+                    
+    #                 # pass
+    #                 # breakpoint()
+    #                 print(k,list(super().__getitem__(k)))
+    #             return super().__getitem__(k)
+    #     return _TDICT()
+        
     def __new__(mtc, name, bases, ns):
-        anns = ns['__annotations__'] = ns.get('__annotations__', {})
+        anns = ns.get('__annotations__', {})
         
         [ns.__setitem__(k,property(itemgetter(k))) for k in anns]
         
-        for base in bases:
-            anns.update(getattr(base,'__annotations__',{}))
+        # for base in bases:
+        #     anns.update(getattr(base,'__annotations__',{}))
         
         cls = super().__new__(mtc, name, bases, ns)
         return cls
     
         
-
-
-
-    
-
-
-    
 
 class _TypedListMeta(_ColMeta):
     def __new__(mtc, name, bases, ns, itemtype=None,**kwargs):
@@ -178,7 +140,10 @@ class _TypedListMeta(_ColMeta):
         return self
     
 
-class TypedDict(_Mapping, metaclass=_TypedDictMeta):    
+    
+
+
+class TypedDict(_Mapping, metaclass=_TypedDictMeta):
     def __init__(self,value):
         super().__init__(((k,t(value[k])) for  k,t in type(self).__annotations__.items()))
         
@@ -187,7 +152,12 @@ class TypedList(_Sequence, metaclass=_TypedListMeta):
         super().__init__(map(type(self).__itemtype__, value))
 
 
-        
+class TypedTuple(TypedDict):
+    def __init__(self,value):
+        d={k:value[i] for i,k in enumerate(type(self).__annotations__)}
+        super().__init__(d)
+    
+     
 # class TypedListIndexed(TypedList,_Indexed_Sequence):
 #     pass       
     
@@ -278,23 +248,179 @@ class ExchangeInfo(TypedDict):
     symbols : Symbols
 
     
-class AggTrade(TypedDict):
-    a : int
-    p : Decimal
-    q : Decimal
-    f : int
-    l : int
-    T : datetime_ms
-    m : Bool
-    M : Bool
+
+
+class KLine(TypedTuple):
+    opentime : datetime_ms 
+    o : Decimal
+    h : Decimal
+    l : Decimal
+    c : Decimal
+    v : Decimal
+    closetime : datetime_ms
+    quote_volume : Decimal
+    ntrades : int
+    tbuybasevolume : Decimal
+    takerbuyassetvolume : Decimal
+    _ignore : str
     
-@Indexed(itemgetter('a'))
-class AggTrades(TypedList, itemtype=AggTrade):
+    def __repr__(self):
+        return '%s <%s>' % (type(self).__name__, self.opentime)
+    
+
+class KLines(TypedList, itemtype=KLine):
     pass
 
 
+
+from attr import  attrs,attrib,dataclass
+import attr
+
+
+# def typed_dict(cls,)
+
+# def typed_attrib(type):
+#     fn = ft.partial(attr.ib,type=type,converter=type)
+#     def _wrapper(*args,**kwargs):
+#         ret = fn(*args,**kwargs)
+#         # breakpoint()
+#         return ret
+        
+#     return ft.wraps(fn)(_wrapper)
+#     # def _wrapper(*args,**kwargs):
+#     #     return attr.ib(*args,type=type,converter=type,**kwargs)
+#     # return _wrapper
+# int_attrib=typed_attrib(int)
+# Decimal_attrib=typed_attrib(Decimal)
+# bool_attrib = typed_attrib(bool)
+
+
     
+def typed_sequence(cls=None,itemtype=None):
+    if cls is None:
+        return lambda cls:typed_sequence(cls,itemtype)
+    cls._itemtype = itemtype or cls._itemtype
     
+    _init=cls.__init__
+    @ft.wraps(_init)
+    def _init_(self,*args,**kwargs):
+        if args:
+            iterable,*args = args
+        else:
+            iterable =()
+            
+        self.__list=list(iterable)
+        _init(self,*args,**kwargs)
+    
+    cls.__init__=_init_  
+
+    def __len__(self):
+        return len(self.__list)
+    cls.__len__=__len__
+    
+    def __getitem__(self,ix):
+        if isinstance(ix,int):
+            return cls._itemtype(self.__list[ix])
+        else:
+            return [self[i] for i in range(*ix.indices(len(self)))]
+    cls.__getitem__= __getitem__
+    
+    cls.__repr__=lambda self:pformat(self[:])
+    
+    if not issubclass(cls,Sequence):
+        cls.__bases__=(Sequence,*cls.__bases__)
+    return cls
+
+
+
+@attrs(frozen=True,slots=True)
+class AggTrade(object):
+    a = attrib()
+    p = attrib(converter=float)
+    q = attrib(converter=float)
+    f = attrib(repr=False)
+    l = attrib(repr=False)
+    T = attrib(converter=datetime_ms)
+    m = attrib(repr=False)
+    M = attrib(repr=False)
+
+    @classmethod
+    def list_of(cls,iterable):
+        return list(attr.asdict(cls(**i))for i in iterable)
+    
+# class AggTrade(AggTrade):
+#     __slots__=()
+#     def __init__(self,mapping):
+#         super().__init__(**mapping)
+    
+
+class AggTrades(Sequence):
+    __itemtype__ = __itembuild__ = AggTrade
+    __getitem__ = property(lambda self:self._data.__getitem__)
+    __len__ = lambda self:len(self._data)
+    __iter__ = lambda self:iter(self._data)
+    
+    def __repr__(self):
+        return pformat(self._data,compact=True)
+    
+    def __init__(self,iterable):
+        self._data=list(attr.asdict(AggTrade(**i))for i in iterable)
+        # if isinstance(iterable,type(self)):
+        #     self._data[:] = iterable._data
+        # else:
+        #     self._extend(iterable)
+            
+    # def _extend(self,iterable):
+    #     if isinstance(iterable,type(self)):
+    #         self._data.extend(iterable._data)
+    #     else:
+    #         for i in map(self.__itemtype__,iterable):
+    #             self._data.append(i)
+            
+    # def _append(self,e):
+    #     if isinstance(iterable,self.__itemtype__):
+    #         self._data.append(e)
+    #     else:
+    #         raise ValueError('%s not is instance of %s' % (e,self.__itemtype__))
+            
+    
+    # @classmethod
+    # def from_dict(cls,*args,**kwargs):
+    #     return cls(**dict(*args,**kwargs))
+
+
+    # def __repr__(self):
+    #     def _repr(att):
+    #         return f'{att.name}={str(getattr(self,att.name))}'
+    #     return type(self).__name__ + '(' + ', '.join(
+    #         (_repr(a) for a in attr.fields(type(self)) if a.repr)
+    #         ) + ')'   
+
+# @typed_sequence(itemtype=AggTrade.from_dict)
+# class AggTrades:
+#     # def __init__(self):
+#     #     print(self[:])
+#     #     # pass
+#     pass
+    
+ 
+    
+
+    
+agg={
+        "a": 26129,         # Aggregate tradeId
+        "p": "0.01633102",  # Price
+        "q": "4.70443515",  # Quantity
+        "f": 27781,         # First tradeId
+        "l": 27781,         # Last tradeId
+        "T": 1498793709153, # Timestamp
+        "m": True,          # Was the buyer the maker?
+        "M": True           # Was the trade the best price match?
+    }
+# attr.fields(AggTrade)
+# @Indexed(itemgetter('a'))
+# class AggTrades(TypedList, itemtype=AggTrade):
+#     pass
 # if __name__=='__main__':  
 #     from binarctic.binance.rest_api import Session
 #     ei=Session().exchangeInfo()

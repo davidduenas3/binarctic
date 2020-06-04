@@ -41,18 +41,7 @@ async def aislice(aiterable, *args):
                 nexti = next(it)
             except StopIteration:
                 return
-
-def chunked(iterable, n):
-    for first in iterable:
-        yield chain([first], islice(iterable, n-1))
             
-async def achunked(iterable, n):
-    aiterator=aiter(iterable)
-    async for first in aiterator:
-        yield achain([first],aislice(aiterator,n-1))
-
-
-
 async def alist(iterable):
     return [i async for i in aiter(iterable)]
 async def aset(iterable):
@@ -65,6 +54,29 @@ async def aenumerate(iterable):
     async for j in aiter(iterable):
         yield i, j
         i += 1
+        
+def chunked(iterable, n):
+    iterator=iter(iterable)
+    for first in iterator:
+        yield chain([first], islice(iterator, n-1))
+
+
+
+async def achunked(iterable, n):
+    aiterator=aiter(iterable)
+    async for first in aiterator:
+        yield achain([first],aislice(aiterator,n-1))
+        
+def _chunked_to_list(iterable, n):
+    return (list(c) for c in chunked(iterable,n))
+
+chunked.to_list=_chunked_to_list
+def _achunked_to_list(iterable, n):
+    return (await alist(c) async for c in achunked(iterable,n))
+
+achunked.to_list=_achunked_to_list
+
+
     
 
 class aiter(abc.AsyncIterable):
