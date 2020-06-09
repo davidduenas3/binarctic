@@ -79,7 +79,6 @@ class _KLIterable():
         self.last=startTime-1         
     
 
-# ASession.KLIterable = KLAIterable
     
 class DataParam(Parameter):
     type=staticmethod(lambda x:x)
@@ -211,7 +210,7 @@ class Reqs(object):
                         DataParam.optional('startTime',int),
                         DataParam.optional('endTime',int),
                         DataParam.optional('limit',int))
-                ).pipe(models.AggTrade.list_of)
+                )
     
     klines = End_Point('v3/klines',
                        'get',parameters=(
@@ -235,18 +234,17 @@ class Reqs(object):
     account = End_Point('v3/account','get', signed=True)
     
 
-    # _get_first_ts = apply_fn(lambda res:res[0][0])(
-    #         ft.partialmethod(klines,interval='1h',startTime=0,limit=1))
     
     get_first_ts = pipe.partialmethod(klines,interval='1h',startTime=0,limit=1)\
             .pipe(lambda res:res[0][0])
     
-    klines_iterator = property (lambda self:MethodType(self.KLIterable,self))
     
-    def klines_chunked(self,n=1000):
-        return chunked_iterator(self.klines_iterator,nchunked=n)
     
-    # def klines_chunked(self)
+    
+    klines_iterable = property(lambda self:MethodType(self.KLIterable,self))
+    
+    
+    
     
 class Session(_Base_Session,Reqs):
     
@@ -274,7 +272,10 @@ class Session(_Base_Session,Reqs):
         exec(_KLIterable._code.format('','',''))
 
 
-
+    # def AggIterator(self, symbol, startTime=None, fromId=None):
+    #     if startTime = None:
+            
+            
             
 class ASession(_Base_Session,Reqs):
     
@@ -301,23 +302,24 @@ class ASession(_Base_Session,Reqs):
 
     
 
-def chunked_iterator(func,nchunked=1000):
+# def chunked_iterator(func=None,nchunked=1000):
+#     if func is None:
+#         return lambda func:chunked_iterator(func,nchunked)
+    
+#     @ft.wraps(func)
+#     def _wrapper(*args,**kwargs):
+#         from binarctic.utils import chunked,achunked
         
-    @ft.wraps(func)
-    def _wrapper(*args,**kwargs):
-        from binarctic.utils import chunked,achunked
+#         it=func(*args,**kwargs)
+#         if isinstance(it,abc.Iterable):
+#             return chunked.to_list(it,nchunked)
+           
+#         elif isinstance(it,abc.AsyncIterable):
+#             return  achunked.to_list(it,nchunked)
         
-        it=func(*args,**kwargs)
-        if isinstance(it,abc.Iterable):
-            return chunked.to_list(it,nchunked)
-            # return (list(c) for c in chunked(it,nchunked))
-        elif isinstance(it,abc.AsyncIterable):
-            return  achunked.to_list(it,nchunked)
-        # (await alist(c) async for c in achunked(it,nchunked)) 
+#         raise TypeError('generatorfunction??')
         
-        raise TypeError('generatorfunction??')
-        
-    return _wrapper
+#     return _wrapper
     
 
             
