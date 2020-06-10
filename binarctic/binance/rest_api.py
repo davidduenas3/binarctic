@@ -14,16 +14,18 @@ import hmac
 import requests
 import time
 import enum
+import json
 import functools as ft
 import itertools as itt
 from abc import  ABC, abstractmethod
 from operator import itemgetter
-from binarctic.binance.exception import  BinanceAPIException, BinanceRequestException
+# from binarctic.binance.exception import  BinanceAPIException, BinanceRequestException
 from binarctic.binance import api_config
 from binarctic.binance import models
 from binarctic.pipe import Pipable, apply_fn
 from binarctic import pipe
 from binarctic.utils import *
+from binarctic.klines import KInterval
 
 from inspect import (Signature,Parameter,signature,iscoroutine,
                      iscoroutinefunction,ismethoddescriptor,isfunction,
@@ -36,47 +38,70 @@ from collections import namedtuple, abc
 __all__ = ['Session','ASession']
 
 
+class BinanceAPIException(Exception):
 
+    def __init__(self, response, status_code, text):
+        self.code = 0
+        try:
+            json_res = json.loads(text)
+        except ValueError:
+            self.message = 'Invalid JSON error message from Binance: {}'.format(response.text)
+        else:
+            self.code = json_res['code']
+            self.message = json_res['msg']
+        self.status_code = status_code
+        self.response = response
+        self.request = getattr(response, 'request', None)
 
-
-class KInterval(str,enum.Enum):
-    KLINE_INTERVAL_1MINUTE = '1m'
-    KLINE_INTERVAL_3MINUTE = '3m'
-    KLINE_INTERVAL_5MINUTE = '5m'
-    KLINE_INTERVAL_15MINUTE = '15m'
-    KLINE_INTERVAL_30MINUTE = '30m'
-    KLINE_INTERVAL_1HOUR = '1h'
-    KLINE_INTERVAL_2HOUR = '2h'
-    KLINE_INTERVAL_4HOUR = '4h'
-    KLINE_INTERVAL_6HOUR = '6h'
-    KLINE_INTERVAL_8HOUR = '8h'
-    KLINE_INTERVAL_12HOUR = '12h'
-    KLINE_INTERVAL_1DAY = '1d'
-    KLINE_INTERVAL_3DAY = '3d'
-    KLINE_INTERVAL_1WEEK = '1w'
-    KLINE_INTERVAL_1MONTH = '1M'
-
-    __str__=lambda self: str.__str__(self)
-
-class _KLIterable():
-    _code='''{}def __{}iter__(self):
-            buffer=None
-            while True:
-                if buffer is None:
-                    if chunk:= {}self.req(startTime=self.last+1):
-                        buffer = iter(chunk)
-                    else:
-                        return
-                try:
-                    ret=next(buffer)
-                    yield ret
-                    self.last=ret[0]  
-                except StopIteration:
-                    buffer=None'''  
+    def __str__(self):  # pragma: no cover
+        return 'APIError(code=%s): %s' % (self.code, self.message)    
     
-    def __init__(self,sess,symbol,interval='1h',startTime=0):
-        self.req=ft.partial(sess.klines,symbol,KInterval(interval),limit=1000)
-        self.last=startTime-1         
+class BinanceRequestException(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return 'BinanceRequestException: %s' % self.message
+
+
+# class KInterval(str,enum.Enum):
+#     KLINE_INTERVAL_1MINUTE = '1m'
+#     KLINE_INTERVAL_3MINUTE = '3m'
+#     KLINE_INTERVAL_5MINUTE = '5m'
+#     KLINE_INTERVAL_15MINUTE = '15m'
+#     KLINE_INTERVAL_30MINUTE = '30m'
+#     KLINE_INTERVAL_1HOUR = '1h'
+#     KLINE_INTERVAL_2HOUR = '2h'
+#     KLINE_INTERVAL_4HOUR = '4h'
+#     KLINE_INTERVAL_6HOUR = '6h'
+#     KLINE_INTERVAL_8HOUR = '8h'
+#     KLINE_INTERVAL_12HOUR = '12h'
+#     KLINE_INTERVAL_1DAY = '1d'
+#     KLINE_INTERVAL_3DAY = '3d'
+#     KLINE_INTERVAL_1WEEK = '1w'
+#     KLINE_INTERVAL_1MONTH = '1M'
+
+#     __str__=lambda self: str.__str__(self)
+
+# class _KLIterable():
+#     _code='''{}def __{}iter__(self):
+#             buffer=None
+#             while True:
+#                 if buffer is None:
+#                     if chunk:= {}self.req(startTime=self.last+1):
+#                         buffer = iter(chunk)
+#                     else:
+#                         return
+#                 try:
+#                     ret=next(buffer)
+#                     yield ret
+#                     self.last=ret[0]  
+#                 except StopIteration:
+#                     buffer=None'''  
+    
+#     def __init__(self,sess,symbol,interval='1h',startTime=0):
+#         self.req=ft.partial(sess.klines,symbol,KInterval(interval),limit=1000)
+#         self.last=startTime-1         
     
 
     
@@ -241,7 +266,7 @@ class Reqs(object):
     
     
     
-    klines_iterable = property(lambda self:MethodType(self.KLIterable,self))
+    # klines_iterable = property(lambda self:MethodType(self.KLIterable,self))
     
     
     
@@ -268,8 +293,8 @@ class Session(_Base_Session,Reqs):
     
    
 
-    class KLIterable(_KLIterable):
-        exec(_KLIterable._code.format('','',''))
+    # class KLIterable(_KLIterable):
+    #     exec(_KLIterable._code.format('','',''))
 
 
     # def AggIterator(self, symbol, startTime=None, fromId=None):
@@ -297,46 +322,22 @@ class ASession(_Base_Session,Reqs):
                     raise BinanceRequestException('Invalid Response: {}'.format(txt))
     
 
-    class KLIterable(_KLIterable):
-        exec(_KLIterable._code.format('async ','a', 'await '))
+    # class KLIterable(_KLIterable):
+    #     exec(_KLIterable._code.format('async ','a', 'await '))
 
     
 
-# def chunked_iterator(func=None,nchunked=1000):
-#     if func is None:
-#         return lambda func:chunked_iterator(func,nchunked)
-    
-#     @ft.wraps(func)
-#     def _wrapper(*args,**kwargs):
-#         from binarctic.utils import chunked,achunked
-        
-#         it=func(*args,**kwargs)
-#         if isinstance(it,abc.Iterable):
-#             return chunked.to_list(it,nchunked)
-           
-#         elif isinstance(it,abc.AsyncIterable):
-#             return  achunked.to_list(it,nchunked)
-        
-#         raise TypeError('generatorfunction??')
-        
-#     return _wrapper
-    
+
 
             
 if __name__=='__main__':
     
     sym='BTCUSDT'
-    s=Session()
-    # print(list(s.exchangeInfo()))
-    # print(list(s.account()))
-    # print(len(s.aggTrades(sym,fromId=99)))
     
-    # fn= s._chunker(sym,interval=KInterval.KLINE_INTERVAL_1DAY,startTime=0)(Session.klines)
-     
-    # ei=s.exchangeInfo()
-    ac=ASession()
+    sess=Session()
+    asess=ASession()
     
-    # chunker =chunked_iterator(100,s.klines_iterator)(sym,'1h')
+   
     
     
 """

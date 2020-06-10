@@ -7,6 +7,8 @@ Created on Wed May 20 18:38:16 2020
 """
 # from itertools import chain,slice
 # import itertools as itt
+import sys
+# import itertools as itt
 from itertools import chain,islice
 from collections import abc
 
@@ -60,38 +62,49 @@ def chunked(iterable, n):
     for first in iterator:
         yield chain([first], islice(iterator, n-1))
 
-
+# itt.chunked=chunked
 
 async def achunked(iterable, n):
     aiterator=aiter(iterable)
     async for first in aiterator:
         yield achain([first],aislice(aiterator,n-1))
         
-def _chunked_to_list(iterable, n):
-    return (list(c) for c in chunked(iterable,n))
 
-chunked.to_list=_chunked_to_list
-def _achunked_to_list(iterable, n):
-    return (await alist(c) async for c in achunked(iterable,n))
 
-achunked.to_list=_achunked_to_list
+async def atakewhile(predicate,iterable):
+    async for i in aiter(iterable):
+        if not predicate(i):
+            break
+        yield i
+        
+async def adropwhile(predicate,iterable):
+    aiterator=aiter(iterable)
+    async for i in aiterator:
+        if not predicate(i):
+            yield i
+            break
+    async for i in aiterator:
+        yield i
+            
 
 
     
 
-class aiter(abc.AsyncIterable):
+class aiter(abc.AsyncIterator):
     
     def __new__(cls,iterable):
         if isinstance(iterable,abc.AsyncIterator):
             return iterable
         elif isinstance(iterable,abc.AsyncIterable):
             return iterable.__aiter__()
-        elif isinstance(iterable,abc.Iterable):
+        elif isinstance(iterable,abc.Iterator):
             self=super().__new__(cls)
-            self.iterator=iter(iterable)
+            self.iterator=iterable
             return self
+        elif isinstance(iterable,abc.Iterable):
+            return aiter.__new__(cls,iter(iterable))
         else:
-            raise TypeError('%s debe ser iterable')
+            raise TypeError('%s debe ser iterable' % iterable)
             
             
         
@@ -101,6 +114,9 @@ class aiter(abc.AsyncIterable):
     def __aiter__(self):
         return self
     
+    async def aclose(self):
+        self.iterator.close()
+    
     async def __anext__(self):
         try:
             return next(self.iterator)
@@ -108,8 +124,15 @@ class aiter(abc.AsyncIterable):
             raise StopAsyncIteration
             
 aiter.__name__='AsyncIteratorWrapper'            
-anext = lambda aiterator : aiterator.__anext__()
 
+
+def anext(iterator):
+    if isinstance(iterator,abc.AsyncIterator):
+        return iterator.__anext__()
+    elif isinstance(iterator,abc.Iterator):
+        return aiter(iterator).__anext__()
+    raise TypeError('%s debe ser iterator' % iterator)
+    
 async def amap(func,*aiterables):
     aiterators = [aiter(i) for i in aiterables]
     while True:
@@ -117,6 +140,14 @@ async def amap(func,*aiterables):
             yield func(*[await anext(ai) for ai in aiterators])
         except StopAsyncIteration:
             break
+        
+async def afilter(func,iterable):
+    func = func or bool
+    aiterator=aiter(iterable)
+    async for i in aiterator:
+        if func(i):
+            yield i
+    
         # yield func(*args)
 
 # ii=aitt.islice(ii, 10)
@@ -126,9 +157,12 @@ async def amap(func,*aiterables):
         
 if __name__=='__main__':
     
-    ii=aiter(range(100))
-    cc=achunked(ii,10)
-    ll=(await atuple(i async for i in c) async for c in cc )
+    # ii=aiter(range(100))
+    cc=achunked(range(100),10)
+    rr=aiter(range(100))
+    rr=afilter(lambda x:x>12 and x<=33,range(88))
+    # rr=atakewhile(lambda x:x<=33,adropwhile(lambda x:x<12,rr))
+    ll=([i async for i in c] async for c in cc)
     
     # async for c in cc:
     #     print(await alist(c))
