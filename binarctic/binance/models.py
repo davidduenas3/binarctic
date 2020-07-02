@@ -20,69 +20,72 @@ from pprint import pprint,pformat
 from inspect import ismethoddescriptor
 from decimal import Decimal
 from binarctic.utils import *
+from dateutil.parser import parse
+# class datetime_ms(datetime):
+#     def __new__(cls,*args,**kwargs):
+#         return cls.fromtimestamp_ms(args[0]) if len(args)==1 else datetime.__new__(cls,*args,**kwargs)
+#     @classmethod
+#     def fromtimestamp_ms(cls, ms):
+#         return cls.utcfromtimestamp(int(ms)/1000)
+#     def timestamp_ms(self):
+#         return int(1000*self.timestamp())
+    
+#     [
+#                     1499040000000,      # Open time
+#                     "0.01634790",       # Open
+#                     "0.80000000",       # High
+#                     "0.01575800",       # Low
+#                     "0.01577100",       # Close
+#                     "148976.11427815",  # Volume
+#                     1499644799999,      # Close time
+#                     "2434.19055334",    # Quote asset volume
+#                     308,                # Number of trades
+#                     "1756.87402397",    # Taker buy base asset volume
+#                     "28.46694368",      # Taker buy quote asset volume
+#                     "17928899.62484339" # Can be ignored
+#                 ]
+    
 
-class datetime_ms(datetime):
-    def __new__(cls,*args,**kwargs):
-        return cls.fromtimestamp_ms(args[0]) if len(args)==1 else datetime.__new__(cls,*args,**kwargs)
+
+# class Tstamp(pd.Timestamp):
+#     def __new__(cls,*args,**kwargs):
+#         self=super().__new__(cls,*args,**kwargs)
+#         self.__class__=cls
+#         return self
+
+class tsms(int):
+    __slots__=()
+    def __new__(cls,arg):
+        if isinstance(arg,datetime):
+            arg=int(1000*arg.timestamp())
+            
+        self = super().__new__(cls,arg)
+        # self._as_datetime=pd.Timestamp.utcfromtimestamp(self/1000)
+        return self
+    
+    def to_datetime(self):
+        return pd.Timestamp.utcfromtimestamp(self/1000)
+    
     @classmethod
-    def fromtimestamp_ms(cls, ms, tz=None):
-        return cls.fromtimestamp(int(ms)/1000,tz)
-    def timestamp_ms(self):
-        return int(1000*self.timestamp())
+    def from_datetime(cls,dt):
+        if isinstance(dt,str):
+            dt=pd.Timestamp(parse(dt))
+        return cls(int(1000*dt.timestamp()))
     
-    [
-                    1499040000000,      # Open time
-                    "0.01634790",       # Open
-                    "0.80000000",       # High
-                    "0.01575800",       # Low
-                    "0.01577100",       # Close
-                    "148976.11427815",  # Volume
-                    1499644799999,      # Close time
-                    "2434.19055334",    # Quote asset volume
-                    308,                # Number of trades
-                    "1756.87402397",    # Taker buy base asset volume
-                    "28.46694368",      # Taker buy quote asset volume
-                    "17928899.62484339" # Can be ignored
-                ]
+    def __str__(self):
+        return str(int(self))
+    
+    def __repr__(self):
+        return '{} <-> {}'.format(
+            int(self),self.to_datetime()._short_repr)
 
 
-def iterKlines(sess,symbol,interval='1h',startTime=0):
-    def to_dict(i):
-        return dict(
-            t=datetime_ms(i[0]),
-            o=float(i[1]),
-            h=float(i[2]),
-            l=float(i[3]),
-            c=float(i[4]),
-            v=float(i[5]),
-            tclose=datetime_ms(i[6]),
-            ntrades=int(i[8])
-            )    
-    ii=sess.klines_iterable(symbol,interval,startTime)
-    # def _iter():
-    #     for i in chunked(ii,500):
-    #         yield pd.DataFrame(map(to_dict,i)).set_index('t')
-    # async def _aiter():
-    #     async for i in achunked(ii,500):
-    #         i=await alist(i)
-    #         yield pd.DataFrame(map(to_dict,i)).set_index('t')
-    if isinstance(ii,Iterable):
-        return (pd.DataFrame(map(to_dict,i)).set_index('t') for i in chunked(ii,500))
-    elif isinstance(ii,AsyncIterable):
-        return (pd.DataFrame(map(to_dict,await alist(i))).set_index('t') async  for i in achunked(ii,500))
-    else:
-        raise TypeError
+    
     
 
-def Lib_Klines(interval='1h'):
-    from arctic import Arctic,CHUNK_STORE
-    a=Arctic('mongodb://arctic:arctic@localhost/arctic')
-    name='klines_' + interval
-    try:
-        return a[name]
-    except:
-        a.initialize_library(name,CHUNK_STORE)
-        return a[name]
+    
+
+
 
 # a['dsf']
 # def KLine_DF(iterable):

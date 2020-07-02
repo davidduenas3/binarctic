@@ -25,7 +25,7 @@ from binarctic.binance import models
 from binarctic.pipe import Pipable, apply_fn
 from binarctic import pipe
 from binarctic.utils import *
-from binarctic.klines import KInterval
+from .klines import KInterval
 
 from inspect import (Signature,Parameter,signature,iscoroutine,
                      iscoroutinefunction,ismethoddescriptor,isfunction,
@@ -220,8 +220,18 @@ class _Base_Session(ABC):
                        'X-MBX-APIKEY': self.key.api_key}    
     
 
+    used_weight={}
+    
+    @classmethod
+    def process_weight(cls,response):
+        headers=response.headers
+        keys='x-mbx-used-weight-1m','x-mbx-used-weight'
+        weights = {k:headers[k] for k in keys if k in headers.keys()}
+        cls.used_weight.update(weights)
+
 
 class Reqs(object): 
+    
     '''
         END_POINTS
     ''' 
@@ -287,6 +297,7 @@ class Session(_Base_Session,Reqs):
                 if not str(response.status_code).startswith('2'):
                     raise BinanceAPIException(response, response.status_code, response.text)
                 try:
+                    self.process_weight(response)
                     return response.json()
                 except ValueError:
                     raise BinanceRequestException('Invalid Response: %s' % response.text)
@@ -316,7 +327,9 @@ class ASession(_Base_Session,Reqs):
                 if not str(response.status).startswith('2'):
                     raise BinanceAPIException(response, response.status, await response.text())
                 try:
-                    return await response.json()
+                    self.process_weight(response)
+                    json = await response.json()
+                    return json
                 except ValueError:
                     txt = await response.text()
                     raise BinanceRequestException('Invalid Response: {}'.format(txt))
