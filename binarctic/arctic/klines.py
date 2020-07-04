@@ -8,7 +8,8 @@ Created on Thu Jun 25 21:38:11 2020
 
 import functools as ft
 from asyncio import sleep,Lock
-from .libs import LibFactory,ChunkStore,KeyProperty,LibWrapper
+from .libs import LibFactory,ChunkStore,KeyProperty
+from .libwrapper import  wrapped_method,LibWrapper,ChunkStore_Wrapper
 from ..binance.klines import KInterval,KLIterator2
 from contextlib import asynccontextmanager
 # from . import chunker
@@ -77,8 +78,17 @@ class KlinesLib(ChunkStore):
         else:
             return 0
         
-
-KlinesLibWrapper=LibFactory.register_type('KLine_Lib_Wrapper')(LibWrapper.create_wrapper(KlinesLib))
+@LibFactory.register_type('KLine_Lib_Wrapper')
+class KlinesLibWrapper(ChunkStore_Wrapper,lib_class=KlinesLib):
+    pass
+    # __lib_class__=KlinesLib
+    
+    
+    
+    
+# print('type(KlinesLibWrapper): ',type(KlinesLibWrapper))
+    
+# KlinesLibWrapper=LibFactory.register_type('KLine_Lib_Wrapper')(LibWrapper.create_wrapper(KlinesLib))
     # @ft.partialmethod
     # class binance_iterator(KLIterator2):
     #     def __init__(self,lib,symbol):
