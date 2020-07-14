@@ -7,9 +7,9 @@ Created on Thu Jun 25 21:38:11 2020
 """
 
 import functools as ft
-from asyncio import sleep,Lock
+from asyncio import sleep,Lock,gather,create_task
 from .libs import LibFactory,ChunkStore,KeyProperty
-from .libwrapper import  wrapped_method,LibWrapper,ChunkStore_Wrapper
+from .libwrapper import  wrapped_method,LibWrapper,ChunkStore_Wrapper,wrapped_attribute
 from ..binance.klines import KInterval,KLIterator2
 from contextlib import asynccontextmanager
 # from . import chunker
@@ -44,29 +44,27 @@ class KlinesLib(ChunkStore):
         interval=self._arctic_lib.get_library_metadata(MINTERVAL)
         return KInterval(interval)
     
-    @property
-    def locks(self):
-        if not '_locks' in self.__dict__:
-            self.__dict__['_locks']={}
-        return self.__dict__['_locks']
-    
-    def get_lock(self,symbol):
-        if not symbol in self.locks:
-            self.locks[symbol]=Lock()
-        return self.locks[symbol]
-    
 
     
-    def assert_symbols(lib,symbols):
-        async def assert_sym(symbol):
-            if lib._get_symbol_info(symbol) is None:
-                it=KLIterator2(symbol,lib.interval,0,limit=100)
-                df=await it.__anext__()
-                lib.write(symbol,df)
-        coros = map(assert_sym,symbols)
-        return asyncio.gather(*coros)    
+     
+    # async def _assert_symbol_coro(self,symbol):
+    #     if self._get_symbol_info(symbol) is None:
+    #         it=KLIterator2(symbol,self.interval,0,limit=100)
+    #         df=await it.__anext__()
+    #         self.write(symbol,df)
+    
+    # def assert_symbol_task(self,symbol):
+    #     return create_task(self._assert_symbol_coro(symbol))
+    
+    def assert_symbol(self,symbol):
+        if self._get_symbol_info(symbol) is None:
+            it=KLIterator2(symbol,self.interval,0,limit=100)
+            df=it.__next__()
+            self.write(symbol,df)
+             
 
-                    
+    def binance_iterator(self,symbol,**kwargs):
+        return KLIterator2(symbol,self.interval,self.startTime(symbol),**kwargs)                
 
         
 
@@ -78,9 +76,29 @@ class KlinesLib(ChunkStore):
         else:
             return 0
         
+    class __Symbol__(ChunkStore.__Symbol__):
+        def __init__(self,lib,symbol):
+            super().__init__(lib,symbol)
+            self.assert_symbol()
+        
+    
+    
 @LibFactory.register_type('KLine_Lib_Wrapper')
 class KlinesLibWrapper(ChunkStore_Wrapper,lib_class=KlinesLib):
-    pass
+    # assert_symbol = wrapped_method()
+    startTime = wrapped_method()
+    interval = wrapped_attribute()
+    _get_symbol_info = wrapped_method()
+    read = wrapped_method()
+    
+    binance_iterator=wrapped_method()
+    
+    # class Symbol(ChunkStore_Wrapper.Symbol):
+    #     def __init__(self,lib,symbol):
+    #         super().__init__(lib,symbol)
+    #         self.lib.assert_symbol_task(symbol)
+            
+        
     # __lib_class__=KlinesLib
     
     

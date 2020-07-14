@@ -47,7 +47,6 @@ class propagable(object):
         pass
     
 class propagableMapping(propagable,MutableMapping):
-    
     def __dir__(self):
         return  list(self.keys()) + super().__dir__()
     

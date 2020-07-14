@@ -21,8 +21,7 @@ class DateChunker(chunkstore.DateChunker):
     
     def to_chunks(self, df, chunk_size=None, func=None):
         assert chunk_size is None or chunk_size==self.chunk_size
-        chunk_size=self.chunk_size
-        return super().to_chunks(df, chunk_size=chunk_size,func=func)
+        return super().to_chunks(df, chunk_size=self.chunk_size,func=func)
 
 
 

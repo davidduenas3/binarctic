@@ -5,8 +5,9 @@ from arctic.date import DateRange
 from .klines import KlinesLib,KlinesLibWrapper
 from . import chunker
 from .libwrapper import (TickStore,TickStore_Wrapper,ChunkStore,
-                         ChunkStore_Wrapper,VersionStore,VersionStore_Wrapper)
-
+                         ChunkStore_Wrapper,VersionStore,VersionStore_Wrapper,
+                         MetadataStore,MetadataStore_Wrapper)
+from .libs import LibFactory
 # class DateRange(date.DateRange):
 #     pass
 
@@ -24,10 +25,10 @@ class Arctic(arctic.Arctic):
                                         interval='1h',
                                         chunker=chunker.year_chunker.TYPE)
         
- 
 
-    tickstore=TickStore.factory('test_tickstore')
-    tickstore_w=TickStore_Wrapper.factory('test_tickstore_w')
+
+    tickstore=TickStore.factory('test_tickstore',chunk_size=99000)
+    tickstore_w=TickStore_Wrapper.factory('test_tickstore_w',chunk_size=99000)
     
     chunstore=ChunkStore.factory('test_chunkstore')
     chunstore_w=ChunkStore_Wrapper.factory('test_chunkstore_w')

@@ -237,7 +237,7 @@ class Reqs(object):
     ''' 
     ping = End_Point('v3/ping', 'get')
     
-    exchangeInfo = End_Point('v3/exchangeInfo', 'get') 
+    # exchangeInfo = End_Point('v3/exchangeInfo', 'get') 
     
     aggTrades = End_Point('v3/aggTrades','get',parameters=(
                         DataParam.mandatory('symbol',str),

@@ -11,71 +11,39 @@ Created on Mon Jun 15 12:09:01 2020
 # import pandas as pd
 from binarctic.binance.klines import KLIterator2
 
-sym='BTCUSDT'
-symbols=[sym,'BNBBTC']
-# i = KLIterator2(sym,'1m')
 
+from tests import test_libs
+    
+from binarctic.arctic import Arctic,DateRange,libwrapper
+from binarctic.binance import Session,ASession
 
-from binarctic.arctic import Arctic,DateRange
-# from arctic.date import Daterange
 
 a=Arctic()
+sym='BTCUSDT'
+# test_libs.test_all(True)
 
-names=[k for k in Arctic.__dict__ if k.endswith('store')]
-names_w=[k for k in Arctic.__dict__ if k.endswith('store_w')]
 
-tick = *map(lambda n : n[0],(names,names_w)),
-chunk = *map(lambda n : n[1],(names,names_w)), #+ names_w
-vers = *map(lambda n : n[2],(names,names_w)),
-all_=names+names_w
-test=all_
+Arctic.ticks=libwrapper.TickStore.factory('ticks')
+Arctic.ticks_w=libwrapper.TickStore_Wrapper.factory('ticks_w')
 
-def delete_libs(names=test):
-    it=iter([names] if isinstance(names,str) else names)
-    try:
-        while True:
-            delattr(a,next(it))
-    except StopIteration:
-        pass
+del a.ticks
+del a.ticks_w
+
+
+# del a.exchangeInfo
+# a.exchangeInfo
+
+ei=a.exchangeInfo.ex_info.read()
+
+# def _on_create(lib):
+#     async def _coro():
+#         lib.custom_data.update(await ASession().exchangeInfo())
+        
+#     import asyncio
+#     asyncio.create_task(_coro())
     
-   
-def iter_libs(names=test):
-    it=iter([names] if isinstance(names,str) else names)
-    while True:
-        try:
-            yield getattr(a,next(it))
-        except StopIteration:
-            return
-
-delete_libs()
-libs = *iter_libs(),
-
-for l in iter_libs():
-    # print(dict(l.metadata))
-    print(l,'\n')
-    print('\t list_symbols',l.list_symbols())
-    print('\t metadata', l.metadata)
-    print('\t custom_data', l.custom_data)
-    print('\t Symbol("w")', l.Symbol('w'))
-    print('\t get_name()', l.get_name())
-    print('')
-
-
-
-
-
-# del a.klines_1h2
-
-
-
-
-
-
-
-
-
-# import asyncio
-
+# Arctic.exchange_info=libwrapper.VersionStore.factory('exchange_info',on_create=_on_create)
+# sess=Session()
 
 
 
