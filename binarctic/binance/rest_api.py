@@ -17,6 +17,7 @@ import enum
 import json
 import functools as ft
 import itertools as itt
+import pandas as pd
 from abc import  ABC, abstractmethod
 from operator import itemgetter
 # from binarctic.binance.exception import  BinanceAPIException, BinanceRequestException
@@ -25,7 +26,7 @@ from binarctic.binance import models
 from binarctic.pipe import Pipable, apply_fn
 from binarctic import pipe
 from binarctic.utils import *
-from .klines import KInterval
+# from .klines import KInterval
 
 from inspect import (Signature,Parameter,signature,iscoroutine,
                      iscoroutinefunction,ismethoddescriptor,isfunction,
@@ -33,7 +34,7 @@ from inspect import (Signature,Parameter,signature,iscoroutine,
                      isgeneratorfunction)
 from types import  MethodType
 from collections import namedtuple, abc
-
+from datetime import datetime
 
 __all__ = ['Session','ASession']
 
@@ -230,6 +231,9 @@ class _Base_Session(ABC):
         cls.used_weight.update(weights)
 
 
+
+    
+
 class Reqs(object): 
     
     '''
@@ -250,7 +254,7 @@ class Reqs(object):
     klines = End_Point('v3/klines',
                        'get',parameters=(
                             DataParam.mandatory('symbol',str),
-                            DataParam.mandatory('interval',KInterval),
+                            DataParam.mandatory('interval',str),
                             DataParam.optional('startTime',int),
                             DataParam.optional('endTime',int),
                             DataParam.optional('limit',int)),
@@ -275,11 +279,70 @@ class Reqs(object):
     
     
     
+    class _Iterator(ABC):
+        def __init__(self,end_point,**kwargs):
+            self.end_point=end_point
+            self.apply=kwargs.pop('apply',lambda x:x)
+            self.kwargs=kwargs
+            
+        def __next__(self):
+            data = self.end_point(**self.kwargs)
+            if data:
+                self._prepare(data)
+                return self.apply(data)
+            else:
+                raise StopIteration
+            
+        async def __anext__(self):
+            data = await self.end_point(**self.kwargs)
+            if data:
+                self._prepare(data)
+                return self.apply(data)
+            else:
+                raise StopIteration       
+        
+        @abstractmethod    
+        def _prepare(self,data):
+            self.kwargs['startTime']=data[-1][6]    
+        
+        def __iter__(self):
+            return self
+        
+        async def __aiter__(self):
+            return self    
+        
     
-    # klines_iterable = property(lambda self:MethodType(self.KLIterable,self))
+    class KIterator(_Iterator):
+        def __init__(self,sess,symbol,interval,startTime=0,**kwargs):
+            super().__init__(sess.klines,symbol=symbol,interval=interval,limit=1000,**kwargs)
+            self.startTime=startTime
+            
+        def _prepare(self,data):
+            self.startTime=data[-1][6]
+             
+        startTime=property(lambda self:self.kwargs['startTime'])
+    
+        @startTime.setter
+        def startTime(self,value):
+            if isinstance(value,int):
+                self.kwargs['startTime']=value
+            elif isinstance(value,datetime):
+                self.startTime=int(value.timestamp()*1000)
+            elif isinstance(value,str):
+                self.startTime=pd.Timestamp(value)
+            else:
+                raise TypeError('%s type??' % type(value))     
+ 
+    
+     
+    @property
+    def klines_iterator(self):
+        from .klines import bin_to_df
+        return ft.partial(self.KIterator,self,apply=bin_to_df)
     
     
-    
+
+
     
 class Session(_Base_Session,Reqs):
     
@@ -304,12 +367,6 @@ class Session(_Base_Session,Reqs):
     
    
 
-    # class KLIterable(_KLIterable):
-    #     exec(_KLIterable._code.format('','',''))
-
-
-    # def AggIterator(self, symbol, startTime=None, fromId=None):
-    #     if startTime = None:
             
             
             
@@ -335,14 +392,35 @@ class ASession(_Base_Session,Reqs):
                     raise BinanceRequestException('Invalid Response: {}'.format(txt))
     
 
-    # class KLIterable(_KLIterable):
-    #     exec(_KLIterable._code.format('async ','a', 'await '))
 
+class Iterator(abc.Iterator,abc.AsyncIterator):
+    def __init__(self,kwargs):
+        self.sess=Session()
+        self.asess=ASession()
+        self.kwargs = dict(kwargs)
     
+    symbol=property(lambda self:self.kwargs['symbol'])
+    # interval=property(lambda self:self.kwargs['interval'])
+    startTime=property(lambda self:self.kwargs['startTime'])
+    
+    @startTime.setter
+    def startTime(self,value):
+        if isinstance(value,int):
+            self.kwargs['startTime']=value
+        elif isinstance(value,datetime):
+            self.startTime=int(value.timestamp()*1000)
+        elif isinstance(value,str):
+            self.startTime=pd.Timestamp(value)
+        else:
+            raise TypeError('%s type??' % type(value))
 
 
-
-            
+    def __iter__(self):
+        return self
+    
+    async def __aiter__(self):
+        return self
+    
 if __name__=='__main__':
     
     sym='BTCUSDT'

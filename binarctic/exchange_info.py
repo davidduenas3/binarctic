@@ -71,8 +71,7 @@ class ExchangeInfo(Mapping):
         return self['symbols']
     
 
-rest_api.Reqs.exchangeInfo =(
-    rest_api.End_Point('v3/exchangeInfo', 'get').pipe(ExchangeInfo))
+rest_api.Reqs.exchangeInfo =rest_api.End_Point('v3/exchangeInfo', 'get')
                              
 
 class Symbol(Mapping):
@@ -110,24 +109,26 @@ class LibExchangeInfo(MetadataStore_Wrapper):
     
     @property
     def ex_info(self):
-        return self.get_symbol('EX_INFO')
+        return self.get_symbol('EX_INFO').read()
         
+
     
-    @property
-    def symbols(self):
-        return self.ex_info.symbols
+    
+    # @property
+    # def symbols(self):
+    #     return self.ex_info.symbols
 
 
     
     async def arequery(self):
-        self.ex_info.append(await ASession().exchangeInfo())
-        print('\nareq')
+        s=ASession()
+        self.append('EX_INFO',await s.exchangeInfo())
+        print("areqw")
         
-        
-@LibExchangeInfo.register_symbol('EX_INFO')
-class ExInfoSymbol(object):
+# @LibExchangeInfo.register_symbol('EX_INFO')
+# class ExInfoSymbol(object):
     
-    read = apply_fn(ExchangeInfo)(LibExchangeInfo.Symbol.read)
+#     read = apply_fn(ExchangeInfo)(LibExchangeInfo.Symbol.read)
 
 # class ExInfoSymbol(LibExchangeInfo.Symbol):
     

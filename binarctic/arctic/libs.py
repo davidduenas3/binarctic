@@ -175,7 +175,8 @@ class _LibBaseMeta(type):
         return cls
     
     def register_symbol(cls,symbol):
-        return cls.Symbol.register_type(symbol)
+        kls=cls.Symbol.register_type(symbol)
+        return kls
     
 class LibMeta(_LibBaseMeta):
     
